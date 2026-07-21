@@ -438,17 +438,17 @@ function exampleRow(a){
 
 async function loadRows(a){
   try{
-    const res = await window.storage.get(`qc_rows_${a.key}`, false);
-    if(res && res.value) return JSON.parse(res.value);
-  }catch(e){ /* storage unavailable or key not set yet */ }
+    const raw = localStorage.getItem(`qc_rows_${a.key}`);
+    if(raw) return JSON.parse(raw);
+  }catch(e){ /* localStorage unavailable (e.g. private browsing) or key not set yet */ }
   return exampleRow(a);
 }
 async function saveRows(key){
   try{
-    await window.storage.set(`qc_rows_${key}`, JSON.stringify(state[key].rows), false);
-    setStatus(key, "Saved.");
+    localStorage.setItem(`qc_rows_${key}`, JSON.stringify(state[key].rows));
+    setStatus(key, "Saved to this browser.");
   }catch(e){
-    setStatus(key, "Note: changes are kept for this session only (persistent storage unavailable).");
+    setStatus(key, "Note: changes are kept for this session only (browser storage unavailable).");
   }
 }
 function setStatus(key, msg){
@@ -1872,13 +1872,13 @@ function applyReagentFilters(){
 
 async function saveReagentData(){
   try{
-    await window.storage.set("reagent_data_custom", JSON.stringify(REAGENT_DATA), false);
+    localStorage.setItem("reagent_data_custom", JSON.stringify(REAGENT_DATA));
   }catch(e){ /* session-only fallback; REAGENT_DATA remains in memory regardless */ }
 }
 async function loadReagentData(){
   try{
-    const res = await window.storage.get("reagent_data_custom", false);
-    if(res && res.value) return JSON.parse(res.value);
+    const raw = localStorage.getItem("reagent_data_custom");
+    if(raw) return JSON.parse(raw);
   }catch(e){ /* not stored yet or unavailable */ }
   return JSON.parse(JSON.stringify(DATA)); // deep clone of the original uploaded snapshot
 }
