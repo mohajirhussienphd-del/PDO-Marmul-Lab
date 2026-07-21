@@ -1,0 +1,2288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PDO Marmul Clinic — QC & Reagent Stock Control Center</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root{
+    --teal:#0F6E6E; --teal-dark:#0a4f4f; --teal-light:#E6F2F2;
+    --ok:#2E7D32; --warn:#E08214; --fail:#C00000; --near:#E08214; --expired:#C00000;
+    --bg:#F7F9F9; --card:#FFFFFF; --border:#DCE6E6;
+  }
+  *{box-sizing:border-box;}
+  body{font-family:'Segoe UI',Arial,sans-serif;background:var(--bg);margin:0;color:#1a1a1a;}
+  header{background:linear-gradient(135deg,var(--teal),var(--teal-dark));color:#fff;padding:20px 28px;}
+  header h1{margin:0;font-size:22px;}
+  header p{margin:4px 0 0;font-size:13px;opacity:.9;}
+  .container{padding:20px 28px 60px;max-width:1400px;margin:0 auto;}
+
+  .main-tabs{display:flex;gap:4px;background:#fff;border-bottom:2px solid var(--border);padding:0 28px;flex-wrap:wrap;position:sticky;top:0;z-index:50;}
+  .main-tab{padding:14px 18px;cursor:pointer;font-size:13.5px;font-weight:700;color:#666;border-bottom:3px solid transparent;white-space:nowrap;}
+  .main-tab.active{color:var(--teal);border-bottom-color:var(--teal);}
+  .main-panel{display:none;}
+  .main-panel.active{display:block;}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+  .card h2{margin:0 0 14px;font-size:15px;color:var(--teal-dark);}
+  .placeholder-note{font-size:11.5px;color:var(--warn);margin-top:-6px;margin-bottom:12px;font-style:italic;}
+
+  .settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;}
+  .settings-grid label{font-size:12px;color:#555;display:block;margin-bottom:4px;font-weight:600;}
+  .settings-grid input{width:100%;padding:7px 9px;border:1px solid var(--border);border-radius:6px;font-size:13px;}
+  table{width:100%;border-collapse:collapse;font-size:12.5px;background:var(--card);}
+  th{background:var(--teal);color:#fff;padding:8px 8px;text-align:center;font-size:12.5px;}
+  td{padding:6px 7px;text-align:center;border-bottom:1px solid var(--border);}
+  input.cell{width:70px;padding:4px 5px;border:1px solid var(--border);border-radius:5px;font-size:12.5px;text-align:center;}
+  input.cell-wide{width:100px;}
+  tr:hover td{background:#F2F8F8;}
+  .flag-none{color:var(--ok);font-weight:700;}
+  .flag-violation{color:#fff;background:var(--fail);font-weight:700;border-radius:5px;padding:2px 6px;}
+  .flag-empty{color:#bbb;}
+  .in-y{color:var(--ok);font-weight:700;}
+  .in-n{color:var(--fail);font-weight:700;}
+  .btn{background:var(--teal);color:#fff;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;font-weight:600;}
+  .btn:hover{background:var(--teal-dark);}
+  .btn.secondary{background:#fff;color:var(--teal);border:1px solid var(--teal);}
+  .row-actions{display:flex;gap:10px;margin-bottom:14px;}
+  .month-bar{display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;}
+  .month-bar label{font-size:13px;font-weight:700;color:var(--teal-dark);}
+  .month-bar select{padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;background:#fff;font-weight:600;color:var(--teal-dark);}
+  .charts-grid{display:grid;grid-template-columns:1fr;gap:20px;}
+  .chart-wrap{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;}
+  .chart-wrap h3{margin:0 0 8px;font-size:13.5px;color:var(--teal-dark);}
+  canvas{max-height:260px;}
+  .legend-note{font-size:11.5px;color:#666;margin-top:8px;line-height:1.5;}
+  .table-scroll{overflow-x:auto;}
+  .status-msg{font-size:12px;color:#888;margin-top:8px;}
+  .del-btn{background:none;border:none;color:var(--fail);cursor:pointer;font-size:15px;}
+  .rules-ref{font-size:12px;color:#555;line-height:1.7;}
+  .rules-ref b{color:var(--teal-dark);}
+
+  .summary{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px;}
+  .summary .scard{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 20px;min-width:150px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+  .summary .scard .num{font-size:26px;font-weight:700;}
+  .summary .scard .label{font-size:12px;color:#555;text-transform:uppercase;letter-spacing:.03em;}
+  .ok-num{color:var(--ok);} .near-num{color:var(--near);} .exp-num{color:var(--expired);}
+  .controls{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;align-items:center;}
+  .controls input[type=text]{padding:9px 14px;border:1px solid var(--border);border-radius:8px;width:260px;font-size:14px;}
+  .controls select{padding:9px 12px;border:1px solid var(--border);border-radius:8px;font-size:14px;background:#fff;}
+  .rs-tabs{display:flex;gap:4px;margin-bottom:18px;flex-wrap:wrap;border-bottom:2px solid var(--border);}
+  .rs-tab{padding:10px 18px;cursor:pointer;font-size:14px;font-weight:600;color:#666;border-bottom:3px solid transparent;}
+  .rs-tab.active{color:var(--teal);border-bottom-color:var(--teal);}
+  section.rs-panel{display:none;}
+  section.rs-panel.active{display:block;}
+  .group-title{font-size:16px;font-weight:700;color:var(--teal-dark);margin:22px 0 10px;padding-bottom:6px;border-bottom:2px solid var(--teal-light);}
+  .rs-table{width:100%;border-collapse:collapse;background:var(--card);border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05);margin-bottom:10px;}
+  .rs-table th{text-align:left;position:static;}
+  .rs-table td{font-size:13px;}
+  .badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:700;color:#fff;}
+  .badge.ok{background:var(--ok);}
+  .badge.near{background:var(--near);}
+  .badge.expired{background:var(--expired);}
+  .badge.na{background:#999;}
+  .inuse{color:var(--teal-dark);font-weight:700;font-size:11px;background:var(--teal-light);padding:2px 8px;border-radius:10px;}
+  .reagent-name{font-weight:700;}
+  .footer-note{margin-top:30px;font-size:12px;color:#777;line-height:1.6;}
+  .low-stock{color:var(--expired);font-weight:700;}
+
+  /* Reagent edit controls */
+  .rs-actions-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+  .rs-add-btn{font-size:11.5px;padding:4px 10px;background:var(--teal-light);color:var(--teal-dark);border:1px solid var(--teal);border-radius:6px;cursor:pointer;font-weight:700;}
+  .rs-add-btn:hover{background:var(--teal);color:#fff;}
+  .row-btn{background:none;border:none;cursor:pointer;font-size:14px;padding:2px 4px;}
+  .row-btn.edit{color:var(--teal);}
+  .row-btn.del{color:var(--fail);}
+  .row-btn.order{color:var(--teal-dark);font-size:15px;}
+  .name-actions{margin-top:5px;display:flex;gap:6px;flex-wrap:wrap;}
+  .name-actions button{font-size:10.5px;padding:2px 7px;border-radius:5px;border:1px solid var(--border);background:#fff;cursor:pointer;color:#555;}
+  .name-actions button:hover{background:var(--teal-light);color:var(--teal-dark);border-color:var(--teal);}
+  .empty-lots{color:#999;font-style:italic;font-size:12px;}
+
+  /* Modal */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:200;}
+  .modal-overlay.show{display:flex;}
+  .modal-box{background:#fff;border-radius:10px;padding:22px 24px;width:380px;max-width:90vw;max-height:85vh;overflow-y:auto;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+  .modal-box h3{margin:0 0 16px;color:var(--teal-dark);font-size:16px;}
+  .modal-field{margin-bottom:12px;}
+  .modal-field label{display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;}
+  .modal-field input, .modal-field select{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;}
+  .modal-field.checkbox{display:flex;align-items:center;gap:8px;}
+  .modal-field.checkbox input{width:auto;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+
+  /* Print (legacy in-page toggle kept as harmless fallback; primary printing uses a popup window) */
+  @media print{
+    .main-tabs, .controls, .rs-tabs, .footer-note, .no-print, .name-actions, .rs-actions-bar { display:none !important; }
+  }
+
+  /* QC sub-tabs (multiple test panels within one analyzer, e.g. Fujifilm LFT/RFT/...) */
+  .qc-subtabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap;border-bottom:2px solid var(--border);}
+  .qc-subtab{padding:8px 14px;cursor:pointer;font-size:13px;font-weight:600;color:#666;border-bottom:3px solid transparent;}
+  .qc-subtab.active{color:var(--teal);border-bottom-color:var(--teal);}
+  .qc-subpanel{display:none;}
+  .qc-subpanel.active{display:block;}
+
+  /* Analyte (parameter) selector within a profile */
+  .analyte-selector-bar{display:flex;align-items:center;gap:10px;margin-bottom:16px;background:var(--teal-light);border-radius:8px;padding:10px 14px;}
+  .analyte-selector-bar label{font-size:13px;font-weight:700;color:var(--teal-dark);}
+  .analyte-selector-bar select{flex:1;max-width:320px;padding:8px 10px;border:1px solid var(--teal);border-radius:6px;font-size:13.5px;background:#fff;font-weight:600;color:var(--teal-dark);}
+  .analyte-panel{display:none;}
+  .analyte-panel.active{display:block;}
+
+  /* Reorder list selection */
+  .reorder-check{width:16px;height:16px;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>PDO Marmul Clinic — QC & Reagent Stock Control Center</h1>
+  <p>Fujifilm, Sysmex XP-300, Cobas b101/h232, Piccolo Express & Urine Analyzer — Automatic Westgard QC charting and live reagent/consumable stock tracking</p>
+</header>
+
+<div class="main-tabs" id="mainTabs"></div>
+
+<div class="container" id="mainContainer">
+  <div id="analyzerPanels"></div>
+
+  <!-- ============ REAGENT STOCK PANEL ============ -->
+  <div class="main-panel" data-mainpanel="reagent">
+    <div class="summary" id="summaryCards"></div>
+    <div class="controls">
+      <input type="text" id="searchBox" placeholder="Search reagent name or lot #...">
+      <select id="statusFilter">
+        <option value="">All Statuses</option>
+        <option value="Ok">Ok</option>
+        <option value="Near Expiry">Near Expiry</option>
+        <option value="Expired">Expired</option>
+      </select>
+      <button class="btn secondary" onclick="printStockList()">🖨 Print Stock List</button>
+    </div>
+    <div class="rs-tabs" id="rsTabBar"></div>
+    <div id="rsPanels"></div>
+    <div class="footer-note">
+      Status legend: <span class="badge ok">Ok</span> = valid, adequate stock &nbsp;
+      <span class="badge near">Near Expiry</span> = ≤30 days to expiry, reorder/prioritize use &nbsp;
+      <span class="badge expired">Expired</span> = remove from service immediately.<br>
+      "In Use" tag marks the lot currently loaded on the analyzer. Data reflects the last manual stock count from the uploaded workbook — verify physical stock before relying on this for ordering decisions.
+    </div>
+  </div>
+
+  <!-- ============ REORDER LIST PANEL (live, on-screen) ============ -->
+  <div class="main-panel" data-mainpanel="reorder">
+    <div class="card">
+      <h2>Items Needing Reorder — Live List</h2>
+      <div class="row-actions">
+        <button class="btn" onclick="renderReorderList()">Refresh</button>
+        <button class="btn secondary" onclick="printSelectedOrderList()">🖨 Print Selected</button>
+        <button class="btn secondary" onclick="printOrderList()">🖨 Print All</button>
+      </div>
+      <div class="table-scroll">
+        <table id="reorderTable">
+          <thead><tr>
+            <th><input type="checkbox" id="reorderSelectAll" onclick="toggleAllReorderChecks(this)"></th>
+            <th>Category</th><th>Reagent / Item</th><th>Lot #</th><th>Stock Qty</th><th>Expiry</th><th>Reason</th><th class="no-print"></th>
+          </tr></thead>
+          <tbody id="reorderBody"></tbody>
+        </table>
+      </div>
+      <div class="legend-note">This list auto-updates from the Reagent Stock tab: it includes anything marked Expired, Near Expiry (≤30 days), or with stock quantity ≤1 unit — plus anything you manually add using the 🛒 button next to any item in the Reagent Stock tab, regardless of its status. Tick the box next to any items you want on your order form, then use "Print Selected" — or print the full list with "Print All". In the print window's dialog, choose "Save as PDF" as the destination to get a PDF file.</div>
+    </div>
+  </div>
+
+  <!-- ============ WESTGARD RULES REFERENCE PANEL ============ -->
+  <div class="main-panel" data-mainpanel="rules">
+    <div class="card">
+      <h2>Westgard Multi-Rule Reference (as applied by this tool)</h2>
+      <div class="rules-ref">
+        <p><b>1-3s</b> — One control observation exceeds ±3SD. Rejects the run (random error).</p>
+        <p><b>2-2s</b> — Two consecutive observations exceed ±2SD in the same direction, either (a) both QC levels within the same run, or (b) the same level on two consecutive testing days. Rejects the run (systematic error).</p>
+        <p><b>R-4s</b> — The range between two control levels within the same run exceeds 4SD (e.g., one level +2SD and the other −2SD). Rejects the run (random error).</p>
+        <p><b>4-1s</b> — Four consecutive control observations (same level, across the last 4 testing days) exceed ±1SD in the same direction. Rejects the run (systematic error/trend).</p>
+        <p><b>10x</b> — Ten consecutive control observations (same level, across the last 10 testing days) fall on the same side of the mean. Rejects the run (systematic bias).</p>
+        <p style="margin-top:14px;">This tool evaluates all five rules automatically after every entry, using the values entered in each analyzer's QC Target Settings panel. A row is flagged "In Control = N" if any rule fires; the specific rule(s) triggered are listed in the Westgard Flag column.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <h3 id="modalTitle">Edit</h3>
+    <div id="modalFields"></div>
+    <div class="modal-actions">
+      <button class="btn secondary" onclick="closeModal()">Cancel</button>
+      <button class="btn" onclick="modalSave()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// QC ANALYTE CONFIGURATION — add/remove individual parameters here.
+// Each analyte (e.g. ALT, Urea, Creatinine) is tracked with its own
+// QC settings, entry log, and Levey-Jennings chart. Analytes are
+// grouped by "profile" (e.g. LFT, RFT) and profiles are grouped by
+// "group" (the instrument, e.g. Fujifilm) for navigation.
+// ============================================================
+const ANALYTES = [
+  // ---- Fujifilm : LFT ----
+  { group:"Fujifilm", profile:"LFT", key:"fuji_lft_alt",  label:"ALT",  nLevels:2, defaults:[{mean:40,sd:4},{mean:90,sd:7}] },
+  { group:"Fujifilm", profile:"LFT", key:"fuji_lft_ast",  label:"AST",  nLevels:2, defaults:[{mean:25,sd:3},{mean:60,sd:5}] },
+  { group:"Fujifilm", profile:"LFT", key:"fuji_lft_alp",  label:"ALP",  nLevels:2, defaults:[{mean:80,sd:8},{mean:180,sd:15}] },
+  { group:"Fujifilm", profile:"LFT", key:"fuji_lft_ggt",  label:"GGT",  nLevels:2, defaults:[{mean:30,sd:4},{mean:70,sd:6}] },
+  { group:"Fujifilm", profile:"LFT", key:"fuji_lft_tbil", label:"Total Bilirubin",    nLevels:2, defaults:[{mean:10,sd:1},{mean:30,sd:3}] },
+  { group:"Fujifilm", profile:"LFT", key:"fuji_lft_dbil", label:"Direct Bilirubin",   nLevels:2, defaults:[{mean:3,sd:0.5},{mean:8,sd:1}] },
+  { group:"Fujifilm", profile:"LFT", key:"fuji_lft_tp",   label:"Total Protein",      nLevels:2, defaults:[{mean:65,sd:4},{mean:80,sd:5}] },
+  { group:"Fujifilm", profile:"LFT", key:"fuji_lft_alb",  label:"Albumin",            nLevels:2, defaults:[{mean:35,sd:3},{mean:48,sd:4}] },
+
+  // ---- Fujifilm : RFT ----
+  { group:"Fujifilm", profile:"RFT", key:"fuji_rft_urea", label:"Urea (BUN)",  nLevels:2, defaults:[{mean:4,sd:0.5},{mean:10,sd:1}] },
+  { group:"Fujifilm", profile:"RFT", key:"fuji_rft_crea", label:"Creatinine",  nLevels:2, defaults:[{mean:70,sd:6},{mean:180,sd:15}] },
+
+  // ---- Fujifilm : Bone Profile ----
+  { group:"Fujifilm", profile:"Bone Profile", key:"fuji_bone_ca",  label:"Calcium",   nLevels:2, defaults:[{mean:2.2,sd:0.1},{mean:2.8,sd:0.15}] },
+  { group:"Fujifilm", profile:"Bone Profile", key:"fuji_bone_po4", label:"Phosphate", nLevels:2, defaults:[{mean:1.0,sd:0.1},{mean:1.8,sd:0.15}] },
+  { group:"Fujifilm", profile:"Bone Profile", key:"fuji_bone_alp", label:"ALP",       nLevels:2, defaults:[{mean:80,sd:8},{mean:180,sd:15}] },
+
+  // ---- Fujifilm : Lipid Profile ----
+  { group:"Fujifilm", profile:"Lipid Profile", key:"fuji_lipid_tc",  label:"Total Cholesterol", nLevels:2, defaults:[{mean:150,sd:10},{mean:280,sd:20}] },
+  { group:"Fujifilm", profile:"Lipid Profile", key:"fuji_lipid_hdl", label:"HDL",               nLevels:2, defaults:[{mean:40,sd:4},{mean:70,sd:6}] },
+  { group:"Fujifilm", profile:"Lipid Profile", key:"fuji_lipid_ldl", label:"LDL",               nLevels:2, defaults:[{mean:80,sd:8},{mean:160,sd:12}] },
+  { group:"Fujifilm", profile:"Lipid Profile", key:"fuji_lipid_tg",  label:"Triglycerides",     nLevels:2, defaults:[{mean:100,sd:10},{mean:220,sd:18}] },
+
+  // ---- Fujifilm : Glucose ----
+  { group:"Fujifilm", profile:"Glucose", key:"fuji_glucose", label:"Glucose", nLevels:2, defaults:[{mean:90,sd:5},{mean:200,sd:10}] },
+
+  // ---- Fujifilm : Uric Acid ----
+  { group:"Fujifilm", profile:"Uric Acid", key:"fuji_uric", label:"Uric Acid", nLevels:2, defaults:[{mean:4.0,sd:0.3},{mean:8.0,sd:0.5}] },
+
+  // ---- Fujifilm : Electrolytes ----
+  { group:"Fujifilm", profile:"Electrolytes", key:"fuji_na", label:"Na (Sodium)",    nLevels:2, defaults:[{mean:130,sd:2},{mean:150,sd:3}] },
+  { group:"Fujifilm", profile:"Electrolytes", key:"fuji_k",  label:"K (Potassium)",  nLevels:2, defaults:[{mean:3.0,sd:0.2},{mean:5.5,sd:0.3}] },
+  { group:"Fujifilm", profile:"Electrolytes", key:"fuji_cl", label:"Cl (Chloride)",  nLevels:2, defaults:[{mean:90,sd:3},{mean:110,sd:4}] },
+
+  // ---- Piccolo : Lipid Profile ----
+  { group:"Piccolo", profile:"Lipid Profile", key:"piccolo_lipid_tc",  label:"Total Cholesterol", nLevels:2, defaults:[{mean:150,sd:10},{mean:280,sd:20}] },
+  { group:"Piccolo", profile:"Lipid Profile", key:"piccolo_lipid_hdl", label:"HDL",               nLevels:2, defaults:[{mean:40,sd:4},{mean:70,sd:6}] },
+  { group:"Piccolo", profile:"Lipid Profile", key:"piccolo_lipid_ldl", label:"LDL",               nLevels:2, defaults:[{mean:80,sd:8},{mean:160,sd:12}] },
+  { group:"Piccolo", profile:"Lipid Profile", key:"piccolo_lipid_tg",  label:"Triglycerides",     nLevels:2, defaults:[{mean:100,sd:10},{mean:220,sd:18}] },
+
+  // ---- Sysmex : CBC ----
+  { group:"Sysmex", profile:"CBC", key:"sysmex_wbc", label:"WBC", nLevels:3, defaults:[{mean:3,sd:0.2},{mean:8,sd:0.4},{mean:15,sd:0.8}] },
+  { group:"Sysmex", profile:"CBC", key:"sysmex_rbc", label:"RBC", nLevels:3, defaults:[{mean:3.0,sd:0.15},{mean:4.5,sd:0.2},{mean:5.5,sd:0.25}] },
+  { group:"Sysmex", profile:"CBC", key:"sysmex_hgb", label:"HGB", nLevels:3, defaults:[{mean:9,sd:0.5},{mean:13,sd:0.6},{mean:16,sd:0.7}] },
+  { group:"Sysmex", profile:"CBC", key:"sysmex_hct", label:"HCT", nLevels:3, defaults:[{mean:28,sd:1.5},{mean:40,sd:2},{mean:50,sd:2.5}] },
+  { group:"Sysmex", profile:"CBC", key:"sysmex_plt", label:"PLT", nLevels:3, defaults:[{mean:50,sd:5},{mean:250,sd:15},{mean:450,sd:25}] },
+
+  // ---- Cobas b101 : HbA1c ----
+  { group:"Cobas b101", profile:"HbA1c", key:"cobasb_hba1c", label:"HbA1c", nLevels:2, defaults:[{mean:5.5,sd:0.2},{mean:9.5,sd:0.3}] },
+
+  // ---- Cobas h232 : Troponin T ----
+  { group:"Cobas h232", profile:"Troponin T", key:"cobash_tropt", label:"Troponin T", nLevels:2, defaults:[{mean:50,sd:5},{mean:500,sd:30}] },
+
+  // ---- Urine Analyzer : Urine Chemistry ----
+  { group:"Urine Analyzer", profile:"Urine Chemistry", key:"urine_chem", label:"Urine Chemistry (composite)", nLevels:2, defaults:[{mean:1.0,sd:0.1},{mean:2.0,sd:0.15}] },
+];
+const GROUPS = [...new Set(ANALYTES.map(a => a.group))];
+function profilesInGroup(group){
+  const seen = [];
+  ANALYTES.filter(a => a.group === group).forEach(a => { if(!seen.includes(a.profile)) seen.push(a.profile); });
+  return seen;
+}
+function analytesInProfile(group, profile){
+  return ANALYTES.filter(a => a.group === group && a.profile === profile);
+}
+
+// ============================================================
+// TOP-LEVEL NAVIGATION (built dynamically)
+// ============================================================
+function buildNav(){
+  const tabs = [
+    ...GROUPS.map(g => ({ key: g, label: g + " QC" })),
+    { key: "reagent", label: "Reagent Stock" },
+    { key: "reorder", label: "Reorder List" },
+    { key: "rules", label: "Westgard Rules" },
+  ];
+  document.getElementById("mainTabs").innerHTML = tabs.map((t,i) =>
+    `<div class="main-tab ${i===0?'active':''}" data-main="${t.key}">${t.label}</div>`
+  ).join("");
+  document.querySelectorAll(".main-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".main-tab").forEach(x=>x.classList.remove("active"));
+      document.querySelectorAll(".main-panel").forEach(x=>x.classList.remove("active"));
+      tab.classList.add("active");
+      document.querySelector(`.main-panel[data-mainpanel="${tab.dataset.main}"]`).classList.add("active");
+    });
+  });
+}
+
+// ============================================================
+// BUILD MARKUP — analyte (innermost), profile (middle), group (outer)
+// ============================================================
+function buildPanelInner(p){
+  const settingsInputs = p.defaults.map((d,i) => `
+    <div><label>Level ${i+1} Mean</label><input type="number" id="${p.key}_l${i+1}_mean" value="${d.mean}" step="any"></div>
+    <div><label>Level ${i+1} SD</label><input type="number" id="${p.key}_l${i+1}_sd" value="${d.sd}" step="any"></div>
+  `).join("");
+
+  const levelHeaders = p.defaults.map((_,i) => `<th>Level ${i+1}</th>`).join("");
+  const zHeaders = p.defaults.map((_,i) => `<th>L${i+1} Z</th>`).join("");
+
+  const chartCards = p.defaults.map((_,i) => `
+    <div class="chart-wrap"><h3>Level ${i+1}</h3><canvas id="${p.key}_chart_l${i+1}"></canvas></div>
+  `).join("");
+
+  const placeholderNote = `<div class="placeholder-note">Target mean/SD values shown are generic placeholders — replace with the assay-specific values from your current control lot insert sheet before relying on this chart.</div>`;
+
+  return `
+    <div class="card">
+      <h2>${p.label} — QC Target Settings</h2>
+      ${placeholderNote}
+      <div class="settings-grid">${settingsInputs}</div>
+    </div>
+    <div class="card">
+      <h2>Daily QC Entry Log — ${p.label}</h2>
+      <div class="month-bar">
+        <label for="${p.key}_month">Month:</label>
+        <select id="${p.key}_month" onchange="changeMonth('${p.key}', this.value)"></select>
+        <button class="btn" onclick="addRow('${p.key}')">+ Add Day</button>
+        <button class="btn secondary" onclick="recalcAll('${p.key}')">Recalculate</button>
+        <button class="btn secondary" onclick="printMonth('${p.key}')">🖨 Print This Month</button>
+      </div>
+      <div class="table-scroll">
+        <table id="${p.key}_table">
+          <thead><tr>
+            <th>Date</th><th>Operator</th><th>Control Lot #</th>
+            ${levelHeaders}${zHeaders}
+            <th>Westgard Flag</th><th>In Control</th><th></th>
+          </tr></thead>
+          <tbody id="${p.key}_tbody"></tbody>
+        </table>
+      </div>
+      <div class="status-msg" id="${p.key}_status"></div>
+    </div>
+    <div class="card">
+      <h2>Levey-Jennings Charts — ${p.label} (<span id="${p.key}_month_label"></span>)</h2>
+      <div class="charts-grid">${chartCards}</div>
+      <div class="legend-note">Red points = Westgard rule violation on that day for that level. Dashed lines: mean (black), \u00b11SD/\u00b12SD (grey/orange), \u00b13SD (red). Charts and log below show one calendar month at a time — use the Month selector above to switch.</div>
+    </div>
+  `;
+}
+
+function buildProfileContent(group, profile){
+  const analytes = analytesInProfile(group, profile);
+  if(analytes.length === 1){
+    return buildPanelInner(analytes[0]);
+  }
+  const selectId = `sel_${group}_${profile}`.replace(/[^a-zA-Z0-9_]/g, "_");
+  const options = analytes.map(a => `<option value="${a.key}">${a.label}</option>`).join("");
+  const analytePanels = analytes.map((a,i) =>
+    `<div class="analyte-panel ${i===0?'active':''}" data-analyte="${a.key}">${buildPanelInner(a)}</div>`
+  ).join("");
+  return `
+    <div class="profile-content">
+      <div class="analyte-selector-bar">
+        <label for="${selectId}">Parameter:</label>
+        <select id="${selectId}" onchange="switchAnalyte(this)">${options}</select>
+      </div>
+      <div class="analyte-panel-container">${analytePanels}</div>
+    </div>
+  `;
+}
+function switchAnalyte(selectEl){
+  const root = selectEl.closest(".profile-content");
+  root.querySelectorAll(".analyte-panel").forEach(p => p.classList.remove("active"));
+  root.querySelector(`.analyte-panel[data-analyte="${selectEl.value}"]`).classList.add("active");
+}
+
+function buildGroupPanel(group){
+  const profiles = profilesInGroup(group);
+  if(profiles.length === 1){
+    return `<div class="main-panel" data-mainpanel="${group}">${buildProfileContent(group, profiles[0])}</div>`;
+  }
+  const subtabs = profiles.map((prof,i) =>
+    `<div class="qc-subtab ${i===0?'active':''}" data-qcpanel="${prof}">${prof}</div>`
+  ).join("");
+  const subpanels = profiles.map((prof,i) =>
+    `<div class="qc-subpanel ${i===0?'active':''}" data-qcpanel="${prof}">${buildProfileContent(group, prof)}</div>`
+  ).join("");
+  return `
+    <div class="main-panel" data-mainpanel="${group}">
+      <div class="qc-subtabs">${subtabs}</div>
+      <div class="qc-subpanel-container">${subpanels}</div>
+    </div>
+  `;
+}
+
+function wireQcSubtabs(){
+  document.querySelectorAll(".qc-subtabs").forEach(bar => {
+    const container = bar.parentElement;
+    bar.querySelectorAll(".qc-subtab").forEach(tab => {
+      tab.addEventListener("click", () => {
+        container.querySelectorAll(".qc-subtab").forEach(t => t.classList.remove("active"));
+        container.querySelectorAll(".qc-subpanel").forEach(p => p.classList.remove("active"));
+        tab.classList.add("active");
+        container.querySelector(`.qc-subpanel[data-qcpanel="${tab.dataset.qcpanel}"]`).classList.add("active");
+      });
+    });
+  });
+}
+
+// ============================================================
+// QC ENGINE STATE
+// ============================================================
+const state = {};
+ANALYTES.forEach(p => { state[p.key] = { rows: [], charts: {}, selectedMonth: null }; });
+
+function todayStr(){ return new Date().toISOString().slice(0,10); }
+
+function exampleRow(a){
+  const results = a.defaults.map(d => Math.round((d.mean + d.sd * 0.15) * 1000) / 1000);
+  return [{ date: "2026-07-01", operator: "A. Hassan", lot: "CTL-0001", results }];
+}
+
+async function loadRows(a){
+  try{
+    const raw = localStorage.getItem(`qc_rows_${a.key}`);
+    if(raw) return JSON.parse(raw);
+  }catch(e){ /* localStorage unavailable (e.g. private browsing) or key not set yet */ }
+  return exampleRow(a);
+}
+async function saveRows(key){
+  try{
+    localStorage.setItem(`qc_rows_${key}`, JSON.stringify(state[key].rows));
+    setStatus(key, "Saved to this browser.");
+  }catch(e){
+    setStatus(key, "Note: changes are kept for this session only (browser storage unavailable).");
+  }
+}
+function setStatus(key, msg){
+  const el = document.getElementById(`${key}_status`);
+  if(el) el.textContent = msg;
+}
+
+function getPanelConfig(key){ return ANALYTES.find(p => p.key === key); }
+
+function getSettings(key){
+  const a = getPanelConfig(key);
+  return a.defaults.map((_,i) => ({
+    mean: parseFloat(document.getElementById(`${key}_l${i+1}_mean`).value),
+    sd: parseFloat(document.getElementById(`${key}_l${i+1}_sd`).value),
+  }));
+}
+
+function computeZScores(rows, settings){
+  return rows.map(row => row.results.map((val, i) => {
+    if(val === null || val === undefined || val === "" || isNaN(val)) return null;
+    const s = settings[i];
+    if(!s || !s.sd) return null;
+    return (parseFloat(val) - s.mean) / s.sd;
+  }));
+}
+
+function evaluateRow(zAll, idx, nLevels){
+  const z = zAll[idx];
+  const violations = [];
+  const hasAnyResult = z.some(v => v !== null);
+  if(!hasAnyResult) return { flag: "", inControl: "" };
+
+  z.forEach((v, li) => { if(v !== null && Math.abs(v) > 3) violations.push(`1-3s(L${li+1})`); });
+
+  for(let i=0;i<nLevels;i++){
+    for(let j=i+1;j<nLevels;j++){
+      const a = z[i], b = z[j];
+      if(a!==null && b!==null && Math.abs(a)>2 && Math.abs(b)>2 && Math.sign(a)===Math.sign(b)){
+        violations.push(`2-2s(run L${i+1}/L${j+1})`);
+      }
+    }
+  }
+  for(let i=0;i<nLevels;i++){
+    for(let j=i+1;j<nLevels;j++){
+      const a = z[i], b = z[j];
+      if(a!==null && b!==null && Math.abs(a-b) > 4) violations.push(`R-4s(L${i+1}/L${j+1})`);
+    }
+  }
+  for(let li=0; li<nLevels; li++){
+    const seriesUpToIdx = [];
+    for(let r=0; r<=idx; r++){ const v = zAll[r][li]; if(v !== null) seriesUpToIdx.push(v); }
+    const n = seriesUpToIdx.length;
+    const cur = z[li];
+    if(cur === null) continue;
+    if(n >= 2){
+      const prev = seriesUpToIdx[n-2];
+      if(Math.abs(cur) > 2 && Math.abs(prev) > 2 && Math.sign(cur) === Math.sign(prev)) violations.push(`2-2s(L${li+1})`);
+    }
+    if(n >= 4){
+      const last4 = seriesUpToIdx.slice(n-4);
+      if(last4.every(v => Math.abs(v) > 1) && last4.every(v => Math.sign(v) === Math.sign(last4[0]))) violations.push(`4-1s(L${li+1})`);
+    }
+    if(n >= 10){
+      const last10 = seriesUpToIdx.slice(n-10);
+      if(last10.every(v => v > 0) || last10.every(v => v < 0)) violations.push(`10x(L${li+1})`);
+    }
+  }
+  const uniqueViol = [...new Set(violations)];
+  return { flag: uniqueViol.length ? uniqueViol.join(", ") : "None", inControl: uniqueViol.length ? "N" : "Y" };
+}
+
+function formatMonthLabel(m){
+  if(!m) return "";
+  const [y, mo] = m.split("-");
+  const d = new Date(parseInt(y,10), parseInt(mo,10)-1, 1);
+  return d.toLocaleString("en-US", { month: "long", year: "numeric" });
+}
+
+function renderTable(key){
+  const a = getPanelConfig(key);
+  const nLevels = a.nLevels;
+  const tbody = document.getElementById(`${key}_tbody`);
+  if(!tbody) return;
+  const settings = getSettings(key);
+  const allRows = state[key].rows;
+  const currentMonth = todayStr().slice(0,7);
+
+  const months = new Set(allRows.map(r => (r.date||"").slice(0,7)).filter(Boolean));
+  months.add(currentMonth);
+  if(!state[key].selectedMonth){
+    const sorted = [...months].sort();
+    state[key].selectedMonth = sorted[sorted.length - 1];
+  }
+  months.add(state[key].selectedMonth);
+  const sortedMonths = [...months].sort();
+
+  const monthSelect = document.getElementById(`${key}_month`);
+  if(monthSelect){
+    monthSelect.innerHTML = sortedMonths.map(m =>
+      `<option value="${m}" ${m===state[key].selectedMonth?"selected":""}>${formatMonthLabel(m)}</option>`
+    ).join("");
+  }
+  const monthLabelEl = document.getElementById(`${key}_month_label`);
+  if(monthLabelEl) monthLabelEl.textContent = formatMonthLabel(state[key].selectedMonth);
+
+  const indexed = allRows.map((r,i) => ({ r, i }))
+    .filter(x => (x.r.date||"").slice(0,7) === state[key].selectedMonth)
+    .sort((x,y) => (x.r.date||"").localeCompare(y.r.date||""));
+  const filteredRows = indexed.map(x => x.r);
+  const zAll = computeZScores(filteredRows, settings);
+
+  tbody.innerHTML = "";
+  indexed.forEach(({r: row, i: origIdx}, displayIdx) => {
+    const evalResult = evaluateRow(zAll, displayIdx, nLevels);
+    const tr = document.createElement("tr");
+
+    const dateTd = `<td><input class="cell cell-wide" type="date" value="${row.date}" onchange="updateField('${key}',${origIdx},'date',this.value)"></td>`;
+    const opTd = `<td><input class="cell cell-wide" type="text" value="${row.operator}" onchange="updateField('${key}',${origIdx},'operator',this.value)"></td>`;
+    const lotTd = `<td><input class="cell" type="text" value="${row.lot}" onchange="updateField('${key}',${origIdx},'lot',this.value)"></td>`;
+
+    let resultTds = "";
+    for(let li=0; li<nLevels; li++){
+      const val = row.results[li] ?? "";
+      resultTds += `<td><input class="cell" type="number" step="any" value="${val}" onchange="updateResult('${key}',${origIdx},${li},this.value)"></td>`;
+    }
+    let zTds = "";
+    for(let li=0; li<nLevels; li++){
+      const z = zAll[displayIdx][li];
+      zTds += `<td>${z === null ? "\u2014" : z.toFixed(2)}</td>`;
+    }
+    const flagClass = evalResult.flag === "" ? "flag-empty" : (evalResult.flag === "None" ? "flag-none" : "flag-violation");
+    const flagTd = `<td class="${flagClass}">${evalResult.flag || "\u2014"}</td>`;
+    const inControlClass = evalResult.inControl === "Y" ? "in-y" : (evalResult.inControl === "N" ? "in-n" : "");
+    const inControlTd = `<td class="${inControlClass}">${evalResult.inControl || "\u2014"}</td>`;
+    const delTd = `<td><button class="del-btn" onclick="deleteRow('${key}',${origIdx})" title="Delete row">\u2715</button></td>`;
+
+    tr.innerHTML = dateTd + opTd + lotTd + resultTds + zTds + flagTd + inControlTd + delTd;
+    tbody.appendChild(tr);
+  });
+
+  updateCharts(key, zAll, filteredRows, nLevels);
+}
+
+function changeMonth(key, monthValue){
+  state[key].selectedMonth = monthValue;
+  renderTable(key);
+}
+
+function updateField(key, idx, field, value){ state[key].rows[idx][field] = value; saveRows(key); }
+function updateResult(key, idx, li, value){
+  const num = value === "" ? null : parseFloat(value);
+  state[key].rows[idx].results[li] = num;
+  renderTable(key);
+  saveRows(key);
+}
+function deleteRow(key, idx){ state[key].rows.splice(idx,1); renderTable(key); saveRows(key); }
+function addRow(key){
+  const a = getPanelConfig(key);
+  const sel = state[key].selectedMonth || todayStr().slice(0,7);
+  const currentMonth = todayStr().slice(0,7);
+  const newDate = (sel === currentMonth) ? todayStr() : `${sel}-01`;
+  state[key].rows.push({ date: newDate, operator: "", lot: "", results: new Array(a.nLevels).fill(null) });
+  renderTable(key);
+  saveRows(key);
+}
+function recalcAll(key){ renderTable(key); }
+
+function printMonth(key){
+  const a = getPanelConfig(key);
+  const monthLabel = formatMonthLabel(state[key].selectedMonth);
+  const settings = getSettings(key);
+  const filteredRows = state[key].rows
+    .filter(r => (r.date||"").slice(0,7) === state[key].selectedMonth)
+    .sort((x,y) => (x.date||"").localeCompare(y.date||""));
+  const zAll = computeZScores(filteredRows, settings);
+
+  let tableHtml = `<table><thead><tr><th>Date</th><th>Operator</th><th>Control Lot #</th>`;
+  for(let li=0; li<a.nLevels; li++) tableHtml += `<th>Level ${li+1}</th>`;
+  for(let li=0; li<a.nLevels; li++) tableHtml += `<th>L${li+1} Z</th>`;
+  tableHtml += `<th>Westgard Flag</th><th>In Control</th></tr></thead><tbody>`;
+  filteredRows.forEach((row, idx) => {
+    const evalResult = evaluateRow(zAll, idx, a.nLevels);
+    tableHtml += `<tr><td>${row.date}</td><td>${row.operator||""}</td><td>${row.lot||""}</td>`;
+    for(let li=0; li<a.nLevels; li++) tableHtml += `<td>${row.results[li] ?? "\u2014"}</td>`;
+    for(let li=0; li<a.nLevels; li++){ const z = zAll[idx][li]; tableHtml += `<td>${z===null?"\u2014":z.toFixed(2)}</td>`; }
+    tableHtml += `<td>${evalResult.flag || "\u2014"}</td><td>${evalResult.inControl || "\u2014"}</td></tr>`;
+  });
+  tableHtml += `</tbody></table>`;
+  if(!filteredRows.length) tableHtml = `<p>No entries recorded for ${monthLabel}.</p>`;
+
+  let chartsHtml = "";
+  for(let li=0; li<a.nLevels; li++){
+    const canvasId = `${key}_chart_l${li+1}`;
+    const canvas = document.getElementById(canvasId);
+    if(canvas){
+      try{
+        const dataUrl = canvas.toDataURL("image/png");
+        chartsHtml += `<h2>Level ${li+1} Chart</h2><img src="${dataUrl}" style="max-width:100%;border:1px solid #ccc;margin-bottom:16px;">`;
+      }catch(e){ /* canvas not ready */ }
+    }
+  }
+  openPrintWindow(`PDO Marmul Clinic \u2014 ${a.label} QC Log \u2014 ${monthLabel}`, tableHtml + chartsHtml);
+}
+
+function updateCharts(key, zAll, rows, nLevels){
+  const labels = rows.map(r => r.date);
+
+  for(let li=0; li<nLevels; li++){
+    const canvasId = `${key}_chart_l${li+1}`;
+    const canvas = document.getElementById(canvasId);
+    if(!canvas) continue;
+
+    const zValues = zAll.map(z => z[li]);
+    const pointColors = zAll.map((z, idx) => {
+      const evalResult = evaluateRow(zAll, idx, nLevels);
+      const flagged = evalResult.flag && evalResult.flag !== "None" && evalResult.flag.includes(`L${li+1}`);
+      return flagged ? "#C00000" : "#0F6E6E";
+    });
+    const refLine = (val) => new Array(labels.length).fill(val);
+
+    const datasets = [
+      { label: `Z-Score`, data: zValues, borderColor: "#0F6E6E", backgroundColor: pointColors, pointBackgroundColor: pointColors, pointRadius: 5, pointHoverRadius: 7, spanGaps: true, tension: 0, borderWidth: 2 },
+      { label: "Mean", data: refLine(0), borderColor: "#000000", borderDash: [6,4], pointRadius: 0, borderWidth: 1 },
+      { label: "+1SD", data: refLine(1), borderColor: "#999999", borderDash: [4,4], pointRadius: 0, borderWidth: 1 },
+      { label: "-1SD", data: refLine(-1), borderColor: "#999999", borderDash: [4,4], pointRadius: 0, borderWidth: 1 },
+      { label: "+2SD", data: refLine(2), borderColor: "#E08214", borderDash: [4,4], pointRadius: 0, borderWidth: 1 },
+      { label: "-2SD", data: refLine(-2), borderColor: "#E08214", borderDash: [4,4], pointRadius: 0, borderWidth: 1 },
+      { label: "+3SD", data: refLine(3), borderColor: "#C00000", borderDash: [2,2], pointRadius: 0, borderWidth: 1.25 },
+      { label: "-3SD", data: refLine(-3), borderColor: "#C00000", borderDash: [2,2], pointRadius: 0, borderWidth: 1.25 },
+    ];
+
+    if(state[key].charts[canvasId]){
+      state[key].charts[canvasId].data.labels = labels;
+      state[key].charts[canvasId].data.datasets = datasets;
+      state[key].charts[canvasId].update();
+    } else {
+      state[key].charts[canvasId] = new Chart(canvas.getContext("2d"), {
+        type: "line",
+        data: { labels, datasets },
+        options: {
+          responsive: true,
+          maintainAspectRatio: true,
+          scales: {
+            y: { min: -4, max: 4, title: { display: true, text: "Z-Score (SD units)" } },
+            x: { title: { display: true, text: "Date" } },
+          },
+          plugins: {
+            legend: { display: true, labels: { boxWidth: 12, font: { size: 10 } } },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  if(ctx.dataset.label === "Z-Score"){
+                    const idx = ctx.dataIndex;
+                    const raw = rows[idx].results[li];
+                    return `Result: ${raw ?? "\u2014"} (Z=${ctx.raw !== null ? ctx.raw.toFixed(2) : "\u2014"})`;
+                  }
+                  return `${ctx.dataset.label}: ${ctx.raw}`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+  }
+}
+
+function attachSettingsListeners(){
+  ANALYTES.forEach(p => {
+    p.defaults.forEach((_,i) => {
+      document.getElementById(`${p.key}_l${i+1}_mean`).addEventListener("change", () => renderTable(p.key));
+      document.getElementById(`${p.key}_l${i+1}_sd`).addEventListener("change", () => renderTable(p.key));
+    });
+  });
+}
+
+// ============================================================
+// REAGENT STOCK DASHBOARD
+// ============================================================
+const DATA = {
+ "fujifilm_reagents": [
+  {
+   "no": 1,
+   "name": "Glucose",
+   "lots": [
+    {
+     "lot": 110412,
+     "in_use": true,
+     "stock": 11,
+     "expiry": "2026-09-30",
+     "status": "Ok",
+     "total_test": 768
+    },
+    {
+     "lot": 112602,
+     "in_use": false,
+     "stock": 8,
+     "expiry": "2027-01-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 156113,
+     "in_use": false,
+     "stock": 13,
+     "expiry": "2027-02-28",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 2,
+   "name": "T.Chol",
+   "lots": [
+    {
+     "lot": 207703,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 209609,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": 96
+    },
+    {
+     "lot": 294009,
+     "in_use": false,
+     "stock": 4,
+     "expiry": "2027-04-30",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 3,
+   "name": "Triglycerides",
+   "lots": [
+    {
+     "lot": 205208,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 206111,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2027-01-31",
+     "status": "Ok",
+     "total_test": 72
+    },
+    {
+     "lot": 256404,
+     "in_use": false,
+     "stock": 3,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 4,
+   "name": "HDL",
+   "lots": [
+    {
+     "lot": 105212,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2027-02-28",
+     "status": "Ok",
+     "total_test": 48
+    },
+    {
+     "lot": 106012,
+     "in_use": false,
+     "stock": 2,
+     "expiry": "2027-05-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 5,
+   "name": "Urea",
+   "lots": [
+    {
+     "lot": 304209,
+     "in_use": true,
+     "stock": 4,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 305008,
+     "in_use": false,
+     "stock": 5,
+     "expiry": "2027-01-31",
+     "status": "Ok",
+     "total_test": 408
+    },
+    {
+     "lot": 337602,
+     "in_use": false,
+     "stock": 8,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 6,
+   "name": "Creatinine",
+   "lots": [
+    {
+     "lot": 315804,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 315813,
+     "in_use": false,
+     "stock": 3,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": 456
+    },
+    {
+     "lot": 318813,
+     "in_use": false,
+     "stock": 8,
+     "expiry": "2027-02-28",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 326109,
+     "in_use": false,
+     "stock": 8,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 7,
+   "name": "Uric acid",
+   "lots": [
+    {
+     "lot": 305111,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 306902,
+     "in_use": false,
+     "stock": 4,
+     "expiry": "2027-02-28",
+     "status": "Ok",
+     "total_test": 96
+    }
+   ]
+  },
+  {
+   "no": 8,
+   "name": "Bili-T",
+   "lots": [
+    {
+     "lot": 405210,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-07-31",
+     "status": "Near Expiry",
+     "total_test": null
+    },
+    {
+     "lot": 406008,
+     "in_use": false,
+     "stock": 6,
+     "expiry": "2026-09-30",
+     "status": "Ok",
+     "total_test": 456
+    },
+    {
+     "lot": 407305,
+     "in_use": false,
+     "stock": 8,
+     "expiry": "2027-01-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 407306,
+     "in_use": false,
+     "stock": 5,
+     "expiry": "2027-01-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 9,
+   "name": "SGOT",
+   "lots": [
+    {
+     "lot": 403803,
+     "in_use": false,
+     "stock": 2,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 426611,
+     "in_use": false,
+     "stock": 1,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": 72
+    }
+   ]
+  },
+  {
+   "no": 10,
+   "name": "SGPT",
+   "lots": [
+    {
+     "lot": 406011,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2027-02-28",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 445809,
+     "in_use": false,
+     "stock": 9,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": 216
+    }
+   ]
+  },
+  {
+   "no": 11,
+   "name": "ALKP",
+   "lots": [
+    {
+     "lot": 103610,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 103511,
+     "in_use": true,
+     "stock": 4,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": 408
+    },
+    {
+     "lot": 104307,
+     "in_use": false,
+     "stock": 5,
+     "expiry": "2027-02-28",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 127002,
+     "in_use": false,
+     "stock": 8,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 12,
+   "name": "GGT",
+   "lots": [
+    {
+     "lot": 304303,
+     "in_use": true,
+     "stock": 10,
+     "expiry": "2026-09-30",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 304304,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-09-30",
+     "status": "Ok",
+     "total_test": 432
+    },
+    {
+     "lot": 383901,
+     "in_use": false,
+     "stock": 8,
+     "expiry": "2026-12-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 13,
+   "name": "T.P",
+   "lots": [
+    {
+     "lot": 404103,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-08-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 404001,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-08-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 404507,
+     "in_use": false,
+     "stock": 5,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": 480
+    },
+    {
+     "lot": 405208,
+     "in_use": false,
+     "stock": 7,
+     "expiry": "2027-01-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 479013,
+     "in_use": false,
+     "stock": 8,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 14,
+   "name": "Alb",
+   "lots": [
+    {
+     "lot": 103208,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-07-31",
+     "status": "Near Expiry",
+     "total_test": null
+    },
+    {
+     "lot": 103710,
+     "in_use": false,
+     "stock": 6,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": 456
+    },
+    {
+     "lot": 104201,
+     "in_use": false,
+     "stock": 5,
+     "expiry": "2026-12-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 183302,
+     "in_use": false,
+     "stock": 8,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 15,
+   "name": "ISE",
+   "lots": [
+    {
+     "lot": 173703,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-09-30",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 177608,
+     "in_use": true,
+     "stock": 3,
+     "expiry": "2027-02-28",
+     "status": "Ok",
+     "total_test": 240
+    },
+    {
+     "lot": 178903,
+     "in_use": false,
+     "stock": 7,
+     "expiry": "2027-02-28",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 16,
+   "name": "ISE Reference",
+   "lots": [
+    {
+     "lot": 60936,
+     "in_use": false,
+     "stock": 3,
+     "expiry": "2026-07-31",
+     "status": "Near Expiry",
+     "total_test": null
+    },
+    {
+     "lot": 60952,
+     "in_use": false,
+     "stock": 1,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 60953,
+     "in_use": false,
+     "stock": 3,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 60961,
+     "in_use": false,
+     "stock": 3,
+     "expiry": "2026-12-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 61010,
+     "in_use": false,
+     "stock": 5,
+     "expiry": "2027-10-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 16,
+   "name": "Calcium",
+   "lots": [
+    {
+     "lot": 104207,
+     "in_use": true,
+     "stock": 1,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 105009,
+     "in_use": false,
+     "stock": 2,
+     "expiry": "2027-01-31",
+     "status": "Ok",
+     "total_test": 144
+    },
+    {
+     "lot": 193804,
+     "in_use": false,
+     "stock": 3,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 17,
+   "name": "Phosphorus",
+   "lots": [
+    {
+     "lot": 102303,
+     "in_use": false,
+     "stock": null,
+     "expiry": "2026-08-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 102613,
+     "in_use": false,
+     "stock": 5,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": 264
+    },
+    {
+     "lot": 149209,
+     "in_use": false,
+     "stock": 2,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 149309,
+     "in_use": false,
+     "stock": 4,
+     "expiry": "2027-03-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 18,
+   "name": "CRP Diluent",
+   "lots": [
+    {
+     "lot": 71750,
+     "in_use": false,
+     "stock": 2,
+     "expiry": "2026-07-31",
+     "status": "Near Expiry",
+     "total_test": null
+    },
+    {
+     "lot": 71755,
+     "in_use": false,
+     "stock": 1,
+     "expiry": "2026-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 71776,
+     "in_use": false,
+     "stock": 3,
+     "expiry": "2027-09-30",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  }
+ ],
+ "fujifilm_qc": [
+  {
+   "no": 1,
+   "name": "QC level Normal",
+   "lots": [
+    {
+     "lot": 21355,
+     "in_use": false,
+     "stock": 2,
+     "expiry": "2026-07-31",
+     "status": "Near Expiry",
+     "total_test": null
+    },
+    {
+     "lot": 21356,
+     "in_use": false,
+     "stock": 13,
+     "expiry": "2027-02-28",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 21457,
+     "in_use": false,
+     "stock": 4,
+     "expiry": "2027-08-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 2,
+   "name": "QC level High",
+   "lots": [
+    {
+     "lot": 22355,
+     "in_use": false,
+     "stock": 6,
+     "expiry": "2026-07-31",
+     "status": "Near Expiry",
+     "total_test": null
+    },
+    {
+     "lot": 22356,
+     "in_use": true,
+     "stock": 17,
+     "expiry": "2027-02-28",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 22457,
+     "in_use": false,
+     "stock": 2,
+     "expiry": "2027-08-31",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  },
+  {
+   "no": 3,
+   "name": "ISE QC",
+   "lots": [
+    {
+     "lot": 30577,
+     "in_use": false,
+     "stock": 3,
+     "expiry": "2028-06-30",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 30578,
+     "in_use": false,
+     "stock": 6,
+     "expiry": "2028-07-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 30581,
+     "in_use": false,
+     "stock": 4,
+     "expiry": "2028-10-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 30582,
+     "in_use": false,
+     "stock": 3,
+     "expiry": "2028-11-30",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 30583,
+     "in_use": false,
+     "stock": 2,
+     "expiry": "2028-12-31",
+     "status": "Ok",
+     "total_test": null
+    },
+    {
+     "lot": 30592,
+     "in_use": false,
+     "stock": 5,
+     "expiry": "2029-09-30",
+     "status": "Ok",
+     "total_test": null
+    }
+   ]
+  }
+ ],
+ "fujifilm_consumables": [
+  {
+   "no": 1,
+   "name": "Tips",
+   "lots": [
+    {
+     "stock": 3,
+     "expiry": "2028-10-31",
+     "status": "Ok",
+     "in_use": true
+    },
+    {
+     "stock": 1,
+     "expiry": "2029-05-31",
+     "status": "Ok",
+     "in_use": false
+    },
+    {
+     "stock": 2,
+     "expiry": "2029-07-31",
+     "status": "Ok",
+     "in_use": false
+    },
+    {
+     "stock": 3,
+     "expiry": "2029-12-31",
+     "status": "Ok",
+     "in_use": false
+    },
+    {
+     "stock": 2,
+     "expiry": "2030-01-31",
+     "status": "Ok",
+     "in_use": false
+    }
+   ]
+  },
+  {
+   "no": 2,
+   "name": "Tubes",
+   "lots": [
+    {
+     "type": "Heparin",
+     "in_use": false,
+     "stock": 2
+    },
+    {
+     "type": "Plain",
+     "in_use": true,
+     "stock": 7
+    }
+   ]
+  },
+  {
+   "no": 3,
+   "name": "Plasma filters",
+   "lots": [
+    {
+     "stock": "3 Box"
+    }
+   ]
+  }
+ ],
+ "sysmex_reagents": [
+  {
+   "no": 1,
+   "name": "Cell Pack",
+   "lots": [
+    {
+     "lot": "D5047",
+     "stock": 0,
+     "expiry": "2026-10-09",
+     "status": "Ok"
+    }
+   ]
+  },
+  {
+   "no": 2,
+   "name": "Stromatolyser",
+   "lots": [
+    {
+     "lot": "D5004",
+     "stock": 1,
+     "expiry": "2027-02-17",
+     "status": "Ok"
+    }
+   ]
+  },
+  {
+   "no": 3,
+   "name": "Cell Clean",
+   "lots": [
+    {
+     "lot": "D5023",
+     "stock": 2,
+     "expiry": "2026-09-02",
+     "status": "Ok"
+    }
+   ]
+  },
+  {
+   "no": 4,
+   "name": "Quality control Tri level",
+   "lots": [
+    {
+     "lot": 6135,
+     "stock": 1,
+     "expiry": "2026-08-22",
+     "status": "Ok"
+    }
+   ]
+  }
+ ],
+ "cobas_b101": [
+  {
+   "no": 1,
+   "name": "HbA1c",
+   "lots": [
+    {
+     "lot": 52430301,
+     "stock": 38,
+     "expiry": "2027-03-31",
+     "status": "Ok"
+    }
+   ]
+  },
+  {
+   "no": 2,
+   "name": "Hba1c QC",
+   "lots": [
+    {
+     "lot": 432901,
+     "stock": 1,
+     "expiry": "2026-10-31",
+     "status": "Ok"
+    }
+   ]
+  },
+  {
+   "no": 3,
+   "name": "Hba1c QC",
+   "lots": [
+    {
+     "lot": 433101,
+     "stock": 1,
+     "expiry": "2027-01-31",
+     "status": "Ok"
+    }
+   ]
+  }
+ ],
+ "cobas_h232": [
+  {
+   "no": 1,
+   "name": "Troponin T",
+   "lots": [
+    {
+     "lot": 84403611,
+     "stock": 3,
+     "expiry": "2026-08-31",
+     "status": "Ok"
+    }
+   ]
+  },
+  {
+   "no": 2,
+   "name": "Troponin T",
+   "lots": [
+    {
+     "lot": 86090510,
+     "stock": 20,
+     "expiry": "2026-11-30",
+     "status": "Ok"
+    }
+   ]
+  },
+  {
+   "no": 3,
+   "name": "QC",
+   "lots": [
+    {
+     "lot": "-",
+     "stock": "-",
+     "expiry": "-",
+     "status": "#VALUE!"
+    }
+   ]
+  },
+  {
+   "no": 4,
+   "name": "Troponin T",
+   "lots": [
+    {
+     "lot": 860905,
+     "stock": 10,
+     "expiry": "2026-11-30",
+     "status": "ok"
+    }
+   ]
+  }
+ ],
+ "piccolo_express": [
+  {
+   "no": 1,
+   "name": "General chemistry 13",
+   "lots": [
+    {
+     "lot": "5113AA8",
+     "stock": 10,
+     "expiry": "2026-09-12",
+     "status": "Ok"
+    },
+    {
+     "lot": "5395AB8",
+     "stock": 30,
+     "expiry": "2027-03-26",
+     "status": "Ok"
+    },
+    {
+     "lot": "5512AB1",
+     "stock": 20,
+     "expiry": "2027-06-16",
+     "status": "Ok"
+    }
+   ]
+  },
+  {
+   "no": 2,
+   "name": "Lipid Profile",
+   "lots": [
+    {
+     "lot": "5403AA7",
+     "stock": 21,
+     "expiry": "2026-10-01",
+     "status": "Ok"
+    },
+    {
+     "lot": "6061AB5",
+     "stock": 10,
+     "expiry": "2027-02-02",
+     "status": "Ok"
+    },
+    {
+     "lot": "6111AB1",
+     "stock": 10,
+     "expiry": "2027-03-09",
+     "status": "Ok"
+    }
+   ]
+  },
+  {
+   "no": 3,
+   "name": "ISE",
+   "lots": [
+    {
+     "lot": "4191AA1",
+     "stock": 20,
+     "expiry": "2025-05-06",
+     "status": "Expired"
+    },
+    {
+     "lot": "3363BB7",
+     "stock": 17,
+     "expiry": "2024-08-30",
+     "status": "Expired"
+    }
+   ]
+  },
+  {
+   "no": 4,
+   "name": "QC",
+   "lots": [
+    {
+     "lot": "141UECM",
+     "stock": "1 BOX",
+     "expiry": "2029-01-28",
+     "status": "Ok"
+    }
+   ]
+  }
+ ],
+ "others_misc": [
+  {
+   "no": 1,
+   "name": "Urine multidrug T cup",
+   "lots": [
+    {
+     "lot": "w514606003",
+     "stock": 25,
+     "expiry": "2027-09-03",
+     "status": "Ok"
+    }
+   ]
+  },
+  {
+   "no": 2,
+   "name": "H Pylori Card",
+   "lots": [
+    {
+     "lot": "HPB25050026",
+     "stock": 7,
+     "expiry": "2027-04-30",
+     "status": "Ok"
+    }
+   ]
+  },
+  {
+   "no": 3,
+   "name": "Pregnancy Card",
+   "lots": [
+    {
+     "lot": "1F14525001",
+     "stock": 9,
+     "expiry": "2027-11-27",
+     "status": "Ok"
+    }
+   ]
+  }
+ ]
+};
+let REAGENT_DATA = null; // mutable working copy, set during init
+
+const RS_SECTIONS = [
+  { key: "fujifilm_reagents", tab: "Fujifilm", title: "Fujifilm Dry Chemistry — Reagent Slides", cols: ["lot","in_use","stock","expiry","status","total_test"] },
+  { key: "fujifilm_qc", tab: "Fujifilm", title: "Fujifilm — Quality Control Materials", cols: ["lot","in_use","stock","expiry","status"] },
+  { key: "fujifilm_consumables", tab: "Fujifilm", title: "Fujifilm — Consumables", cols: ["custom_consumable"] },
+  { key: "sysmex_reagents", tab: "Sysmex", title: "Sysmex XP-300 — Reagents & QC", cols: ["lot","stock","expiry","status"] },
+  { key: "cobas_b101", tab: "Cobas b101", title: "Cobas b 101 — Reagents & QC", cols: ["lot","stock","expiry","status"] },
+  { key: "cobas_h232", tab: "Cobas h232", title: "Cobas h 232 — Reagents & QC", cols: ["lot","stock","expiry","status"] },
+  { key: "piccolo_express", tab: "Piccolo Express", title: "Piccolo Express Chemistry — Reagents & QC", cols: ["lot","stock","expiry","status"] },
+  { key: "others_misc", tab: "Rapid Tests", title: "Other Rapid Test Kits", cols: ["lot","stock","expiry","status"] },
+];
+const RS_TABS = [...new Set(RS_SECTIONS.map(s => s.tab))];
+
+function rsDaysUntil(dateStr){
+  if(!dateStr || dateStr === "-") return null;
+  const d = new Date(dateStr);
+  if(isNaN(d)) return null;
+  const now = new Date("2026-07-20");
+  return Math.round((d - now) / 86400000);
+}
+function rsStatusBadge(status, expiry){
+  let s = (status || "").toString().trim();
+  let cls = "na", label = s || "N/A";
+  const dleft = rsDaysUntil(expiry);
+  if(s.toLowerCase() === "expired" || (dleft !== null && dleft < 0)){ cls="expired"; label="Expired"; }
+  else if(s.toLowerCase() === "near expiry" || (dleft !== null && dleft <= 30 && dleft >= 0)){ cls="near"; label="Near Expiry"; }
+  else if(s.toLowerCase() === "ok"){ cls="ok"; label="Ok"; }
+  else if(s === "#VALUE!" || s === "-"){ cls="na"; label="N/A"; }
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+function rsFmtDate(d){ return (!d || d === "-") ? "\u2014" : d; }
+
+// Field sets used by the Add/Edit modal, per section key
+const SECTION_FIELDS = {
+  fujifilm_reagents: ["lot","in_use","stock","expiry","status","total_test"],
+  fujifilm_qc: ["lot","in_use","stock","expiry","status"],
+  sysmex_reagents: ["lot","stock","expiry","status"],
+  cobas_b101: ["lot","stock","expiry","status"],
+  cobas_h232: ["lot","stock","expiry","status"],
+  piccolo_express: ["lot","stock","expiry","status"],
+  others_misc: ["lot","stock","expiry","status"],
+};
+const FIELD_LABELS = { lot:"Lot #", in_use:"Currently In Use", stock:"Stock Quantity", expiry:"Expiry Date", status:"Status", total_test:"Total Tests / Unit" };
+
+function rsRenderRow(item, cols, sectionKey, itemIdx){
+  const editable = SECTION_FIELDS[sectionKey];
+  const lots = item.lots && item.lots.length ? item.lots : [{}];
+  return lots.map((lot, lotIdx) => {
+    const hasRealLot = item.lots && item.lots.length > 0;
+    const nameCell = lotIdx === 0 ? `
+      <td class="reagent-name" rowspan="${lots.length}">
+        ${item.no}. ${item.name}
+        ${editable ? `<div class="name-actions no-print">
+          <button onclick="openAddLot('${sectionKey}',${itemIdx})">+ Lot</button>
+          <button onclick="deleteReagent('${sectionKey}',${itemIdx})">✕ Remove Item</button>
+        </div>` : ""}
+      </td>` : "";
+    let cells = "";
+    if(cols[0] === "custom_consumable"){
+      if(item.name === "Tips"){
+        cells = `<td>${lot.stock ?? "\u2014"} box(es)</td><td>${rsFmtDate(lot.expiry)}</td><td>${rsStatusBadge(lot.status, lot.expiry)}</td><td>${lot.in_use ? '<span class="inuse">IN USE</span>' : ""}</td>`;
+      } else if(item.name === "Tubes"){
+        cells = `<td>${lot.type ?? "\u2014"}</td><td>${lot.stock ?? "\u2014"} box(es)</td><td>\u2014</td><td>${lot.in_use ? '<span class="inuse">IN USE</span>' : ""}</td>`;
+      } else {
+        cells = `<td colspan="3">${lot.stock ?? "\u2014"}</td><td></td>`;
+      }
+    } else {
+      cells = cols.map(c => {
+        if(c === "lot") return `<td>${lot.lot ?? "\u2014"}</td>`;
+        if(c === "in_use") return `<td>${lot.in_use ? '<span class="inuse">IN USE</span>' : ""}</td>`;
+        if(c === "stock"){
+          const low = (typeof lot.stock === "number" && lot.stock <= 1);
+          return `<td class="${low ? 'low-stock' : ''}">${lot.stock ?? "\u2014"}</td>`;
+        }
+        if(c === "expiry") return `<td>${rsFmtDate(lot.expiry)}</td>`;
+        if(c === "status") return `<td>${rsStatusBadge(lot.status, lot.expiry)}</td>`;
+        if(c === "total_test") return `<td>${lot.total_test ?? "\u2014"}</td>`;
+        return `<td></td>`;
+      }).join("");
+    }
+    const actionsCell = editable && hasRealLot
+      ? `<td class="no-print">
+           <button class="row-btn edit" title="Edit lot" onclick="openEditLot('${sectionKey}',${itemIdx},${lotIdx})">✎</button>
+           <button class="row-btn del" title="Delete lot" onclick="deleteLot('${sectionKey}',${itemIdx},${lotIdx})">🗑</button>
+         </td>`
+      : (editable ? `<td class="no-print"></td>` : "");
+    const orderCell = `<td class="no-print"><button class="row-btn order" title="Add to Reorder List" onclick="addToManualOrder('${sectionKey}',${itemIdx},${lotIdx})">🛒</button></td>`;
+    return `<tr data-name="${item.name.toLowerCase()}" data-lot="${(lot.lot ?? '').toString().toLowerCase()}" data-status="${(lot.status ?? '').toString()}">${nameCell}${cells}${actionsCell}${orderCell}</tr>`;
+  }).join("");
+}
+function rsColHeaders(cols){
+  if(cols[0] === "custom_consumable") return ["Detail","Expiry","Status","Flag"];
+  const map = FIELD_LABELS;
+  return cols.map(c => c === "in_use" ? "In Use" : map[c]);
+}
+function rsBuildSectionTable(section){
+  const items = REAGENT_DATA[section.key] || [];
+  const headers = rsColHeaders(section.cols);
+  const nameHeader = section.cols[0] === "custom_consumable" ? "Item" : "Test / Reagent";
+  const bodyRows = items.map((item, idx) => rsRenderRow(item, section.cols, section.key, idx)).join("");
+  const editable = SECTION_FIELDS[section.key];
+  const actionsHeader = editable ? `<th class="no-print"></th>` : "";
+  const orderHeader = `<th class="no-print">Order</th>`;
+  const addBtn = editable ? `<button class="rs-add-btn no-print" onclick="openAddReagent('${section.key}')">+ Add Reagent</button>` : "";
+  return `
+    <div class="group-title">${section.title} ${addBtn}</div>
+    <table class="rs-table" data-section="${section.key}">
+      <thead><tr><th>${nameHeader}</th>${headers.map(h=>`<th>${h}</th>`).join("")}${actionsHeader}${orderHeader}</tr></thead>
+      <tbody>${bodyRows.length ? bodyRows : `<tr><td colspan="10" class="empty-lots">No items yet — use "+ Add Reagent" above.</td></tr>`}</tbody>
+    </table>
+  `;
+}
+function rsComputeSummary(){
+  let ok=0, near=0, exp=0, total=0;
+  RS_SECTIONS.forEach(sec => {
+    (REAGENT_DATA[sec.key]||[]).forEach(item => {
+      (item.lots||[]).forEach(lot => {
+        total++;
+        const dleft = rsDaysUntil(lot.expiry);
+        const s = (lot.status||"").toString().toLowerCase();
+        if(s === "expired" || (dleft !== null && dleft < 0)) exp++;
+        else if(s === "near expiry" || (dleft !== null && dleft <= 30 && dleft >= 0)) near++;
+        else if(s === "ok") ok++;
+      });
+    });
+  });
+  return {ok, near, exp, total};
+}
+function renderReagentDashboard(){
+  const summary = rsComputeSummary();
+  document.getElementById("summaryCards").innerHTML = `
+    <div class="scard"><div class="num">${summary.total}</div><div class="label">Total Lots Tracked</div></div>
+    <div class="scard"><div class="num ok-num">${summary.ok}</div><div class="label">Ok</div></div>
+    <div class="scard"><div class="num near-num">${summary.near}</div><div class="label">Near Expiry</div></div>
+    <div class="scard"><div class="num exp-num">${summary.exp}</div><div class="label">Expired</div></div>
+  `;
+  const activeTab = document.querySelector(".rs-tab.active")?.dataset.rstab || RS_TABS[0];
+  document.getElementById("rsTabBar").innerHTML = RS_TABS.map((t) =>
+    `<div class="rs-tab ${t===activeTab?'active':''}" data-rstab="${t}">${t}</div>`
+  ).join("");
+  document.getElementById("rsPanels").innerHTML = RS_TABS.map((t) => `
+    <section class="rs-panel ${t===activeTab?'active':''}" data-rspanel="${t}">
+      ${RS_SECTIONS.filter(s=>s.tab===t).map(rsBuildSectionTable).join("")}
+    </section>
+  `).join("");
+
+  document.querySelectorAll(".rs-tab").forEach(tab => {
+    tab.addEventListener("click", () => {
+      document.querySelectorAll(".rs-tab").forEach(x=>x.classList.remove("active"));
+      document.querySelectorAll(".rs-panel").forEach(x=>x.classList.remove("active"));
+      tab.classList.add("active");
+      document.querySelector(`.rs-panel[data-rspanel="${tab.dataset.rstab}"]`).classList.add("active");
+      applyReagentFilters();
+    });
+  });
+  applyReagentFilters();
+}
+function applyReagentFilters(){
+  const q = document.getElementById("searchBox").value.toLowerCase().trim();
+  const statusF = document.getElementById("statusFilter").value;
+  document.querySelectorAll(".rs-panel.active tbody tr").forEach(tr => {
+    const name = tr.dataset.name || "";
+    const lot = tr.dataset.lot || "";
+    const status = tr.dataset.status || "";
+    const matchesQ = !q || name.includes(q) || lot.includes(q);
+    const matchesStatus = !statusF || status === statusF;
+    tr.style.display = (matchesQ && matchesStatus) ? "" : "none";
+  });
+}
+
+async function saveReagentData(){
+  try{
+    localStorage.setItem("reagent_data_custom", JSON.stringify(REAGENT_DATA));
+  }catch(e){ /* session-only fallback; REAGENT_DATA remains in memory regardless */ }
+}
+async function loadReagentData(){
+  try{
+    const raw = localStorage.getItem("reagent_data_custom");
+    if(raw) return JSON.parse(raw);
+  }catch(e){ /* not stored yet or unavailable */ }
+  return JSON.parse(JSON.stringify(DATA)); // deep clone of the original uploaded snapshot
+}
+
+// ============================================================
+// ADD / EDIT / DELETE MODAL LOGIC
+// ============================================================
+let modalContext = null; // { mode: 'addReagent'|'addLot'|'editLot', sectionKey, itemIdx, lotIdx }
+
+function fieldInputHTML(field, value){
+  const label = FIELD_LABELS[field] || field;
+  if(field === "in_use"){
+    return `<div class="modal-field checkbox"><input type="checkbox" id="mf_${field}" ${value ? "checked" : ""}><label for="mf_${field}">${label}</label></div>`;
+  }
+  if(field === "status"){
+    const opts = ["Ok","Near Expiry","Expired"];
+    return `<div class="modal-field"><label>${label}</label><select id="mf_${field}">${opts.map(o=>`<option value="${o}" ${value===o?"selected":""}>${o}</option>`).join("")}</select></div>`;
+  }
+  if(field === "expiry"){
+    return `<div class="modal-field"><label>${label}</label><input type="date" id="mf_${field}" value="${value || ''}"></div>`;
+  }
+  if(field === "stock" || field === "total_test"){
+    return `<div class="modal-field"><label>${label}</label><input type="number" id="mf_${field}" value="${value ?? ''}" step="any"></div>`;
+  }
+  return `<div class="modal-field"><label>${label}</label><input type="text" id="mf_${field}" value="${value ?? ''}"></div>`;
+}
+
+function openAddReagent(sectionKey){
+  const fields = SECTION_FIELDS[sectionKey] || [];
+  modalContext = { mode: "addReagent", sectionKey };
+  document.getElementById("modalTitle").textContent = "Add New Reagent / Item";
+  document.getElementById("modalFields").innerHTML =
+    `<div class="modal-field"><label>Reagent / Test Name</label><input type="text" id="mf_name" value=""></div>` +
+    fields.map(f => fieldInputHTML(f, f === "status" ? "Ok" : "")).join("");
+  document.getElementById("modalOverlay").classList.add("show");
+}
+function openAddLot(sectionKey, itemIdx){
+  const fields = SECTION_FIELDS[sectionKey] || [];
+  modalContext = { mode: "addLot", sectionKey, itemIdx };
+  const item = REAGENT_DATA[sectionKey][itemIdx];
+  document.getElementById("modalTitle").textContent = `Add Lot — ${item.name}`;
+  document.getElementById("modalFields").innerHTML = fields.map(f => fieldInputHTML(f, f === "status" ? "Ok" : "")).join("");
+  document.getElementById("modalOverlay").classList.add("show");
+}
+function openEditLot(sectionKey, itemIdx, lotIdx){
+  const fields = SECTION_FIELDS[sectionKey] || [];
+  modalContext = { mode: "editLot", sectionKey, itemIdx, lotIdx };
+  const item = REAGENT_DATA[sectionKey][itemIdx];
+  const lot = item.lots[lotIdx];
+  document.getElementById("modalTitle").textContent = `Edit Lot — ${item.name}`;
+  document.getElementById("modalFields").innerHTML = fields.map(f => fieldInputHTML(f, lot[f])).join("");
+  document.getElementById("modalOverlay").classList.add("show");
+}
+function closeModal(){
+  document.getElementById("modalOverlay").classList.remove("show");
+  modalContext = null;
+}
+function readModalFields(fields){
+  const obj = {};
+  fields.forEach(f => {
+    const el = document.getElementById(`mf_${f}`);
+    if(!el) return;
+    if(f === "in_use") obj[f] = el.checked;
+    else if(f === "stock" || f === "total_test") obj[f] = el.value === "" ? null : parseFloat(el.value);
+    else obj[f] = el.value;
+  });
+  return obj;
+}
+function modalSave(){
+  if(!modalContext) return;
+  const { mode, sectionKey, itemIdx, lotIdx } = modalContext;
+  const fields = SECTION_FIELDS[sectionKey] || [];
+  const lotData = readModalFields(fields);
+
+  if(mode === "addReagent"){
+    const name = document.getElementById("mf_name").value.trim();
+    if(!name){ alert("Please enter a reagent/test name."); return; }
+    const arr = REAGENT_DATA[sectionKey];
+    const nextNo = arr.length ? Math.max(...arr.map(i => Number(i.no) || 0)) + 1 : 1;
+    arr.push({ no: nextNo, name, lots: [lotData] });
+  } else if(mode === "addLot"){
+    REAGENT_DATA[sectionKey][itemIdx].lots.push(lotData);
+  } else if(mode === "editLot"){
+    Object.assign(REAGENT_DATA[sectionKey][itemIdx].lots[lotIdx], lotData);
+  }
+
+  closeModal();
+  renderReagentDashboard();
+  renderReorderList();
+  saveReagentData();
+}
+function deleteLot(sectionKey, itemIdx, lotIdx){
+  const item = REAGENT_DATA[sectionKey][itemIdx];
+  const lot = item.lots[lotIdx];
+  if(!confirm(`Delete lot "${lot.lot || ''}" for ${item.name}? This usually means the lot is fully used or discarded.`)) return;
+  item.lots.splice(lotIdx, 1);
+  renderReagentDashboard();
+  renderReorderList();
+  saveReagentData();
+}
+function deleteReagent(sectionKey, itemIdx){
+  const item = REAGENT_DATA[sectionKey][itemIdx];
+  if(!confirm(`Remove "${item.name}" entirely, including all its lots? This cannot be undone here.`)) return;
+  REAGENT_DATA[sectionKey].splice(itemIdx, 1);
+  renderReagentDashboard();
+  renderReorderList();
+  saveReagentData();
+}
+
+// ============================================================
+// REORDER LIST (live on-screen + print)
+// ============================================================
+let MANUAL_ORDER_ITEMS = [];
+function loadManualOrderItems(){
+  try{
+    const raw = localStorage.getItem("manual_order_items");
+    if(raw) return JSON.parse(raw);
+  }catch(e){ /* unavailable or not set yet */ }
+  return [];
+}
+function saveManualOrderItems(){
+  try{ localStorage.setItem("manual_order_items", JSON.stringify(MANUAL_ORDER_ITEMS)); }catch(e){ /* session-only */ }
+}
+function addToManualOrder(sectionKey, itemIdx, lotIdx){
+  const item = REAGENT_DATA[sectionKey][itemIdx];
+  const lot = (item.lots && item.lots[lotIdx]) || {};
+  const section = RS_SECTIONS.find(s => s.key === sectionKey);
+  const lotLabel = lot.lot || lot.type || "\u2014";
+  const entry = {
+    category: section ? section.tab : sectionKey,
+    name: item.name,
+    lot: lotLabel,
+    stock: lot.stock ?? "\u2014",
+    expiry: rsFmtDate(lot.expiry),
+    reason: "Manually Selected",
+  };
+  const dup = MANUAL_ORDER_ITEMS.some(e => e.category===entry.category && e.name===entry.name && e.lot===entry.lot);
+  if(dup){ alert(`"${item.name}" (lot ${lotLabel}) is already on your Reorder List.`); return; }
+  MANUAL_ORDER_ITEMS.push(entry);
+  saveManualOrderItems();
+  renderReorderList();
+  alert(`Added "${item.name}" to the Reorder List.`);
+}
+function removeManualOrderItem(idx){
+  MANUAL_ORDER_ITEMS.splice(idx, 1);
+  saveManualOrderItems();
+  renderReorderList();
+}
+
+function computeOrderRows(){
+  const rows = [];
+  RS_SECTIONS.forEach(sec => {
+    (REAGENT_DATA[sec.key]||[]).forEach(item => {
+      (item.lots||[]).forEach(lot => {
+        const dleft = rsDaysUntil(lot.expiry);
+        const s = (lot.status||"").toString().toLowerCase();
+        const isExpired = s === "expired" || (dleft !== null && dleft < 0);
+        const isNear = s === "near expiry" || (dleft !== null && dleft <= 30 && dleft >= 0);
+        const isLow = (typeof lot.stock === "number" && lot.stock <= 1);
+        if(isExpired || isNear || isLow){
+          rows.push({
+            category: sec.tab, name: item.name, lot: lot.lot || "\u2014",
+            stock: lot.stock ?? "\u2014", expiry: rsFmtDate(lot.expiry),
+            reason: isExpired ? "Expired" : (isNear ? "Near Expiry" : "Low Stock"),
+            manualIdx: null,
+          });
+        }
+      });
+    });
+  });
+  MANUAL_ORDER_ITEMS.forEach((m, mi) => {
+    const dup = rows.some(r => r.category===m.category && r.name===m.name && r.lot===m.lot);
+    if(!dup) rows.push({ ...m, manualIdx: mi });
+  });
+  return rows;
+}
+let REORDER_ROWS_CACHE = [];
+function renderReorderList(){
+  const tbody = document.getElementById("reorderBody");
+  if(!tbody) return;
+  const rows = computeOrderRows();
+  REORDER_ROWS_CACHE = rows;
+  const selectAll = document.getElementById("reorderSelectAll");
+  if(selectAll) selectAll.checked = false;
+  tbody.innerHTML = rows.length
+    ? rows.map((r,i) => `<tr><td><input type="checkbox" class="reorder-check" data-idx="${i}"></td><td>${r.category}</td><td>${r.name}</td><td>${r.lot}</td><td>${r.stock}</td><td>${r.expiry}</td><td>${r.reason}</td><td class="no-print">${r.manualIdx !== null ? `<button class="del-btn" title="Remove from list" onclick="removeManualOrderItem(${r.manualIdx})">\u2715</button>` : ""}</td></tr>`).join("")
+    : `<tr><td colspan="8" style="text-align:center;color:#888;">Nothing currently needs reordering. Use the \ud83d\uded2 button in Reagent Stock to add any item manually.</td></tr>`;
+}
+function toggleAllReorderChecks(sourceCheckbox){
+  document.querySelectorAll(".reorder-check").forEach(cb => { cb.checked = sourceCheckbox.checked; });
+}
+function getSelectedOrderRows(){
+  const idxs = Array.from(document.querySelectorAll(".reorder-check:checked")).map(el => parseInt(el.dataset.idx, 10));
+  return idxs.map(i => REORDER_ROWS_CACHE[i]).filter(Boolean);
+}
+function printSelectedOrderList(){
+  const selected = getSelectedOrderRows();
+  if(!selected.length){
+    alert("Please tick at least one item before printing the selection.");
+    return;
+  }
+  openPrintWindow("PDO Marmul Clinic \u2014 Selected Reorder Items", buildOrderPrintHTML(selected));
+}
+
+// ============================================================
+// PRINT (opens a separate window with plain static HTML — avoids
+// any dependency on this page's dynamic CSS/tab visibility)
+// ============================================================
+function openPrintWindow(title, bodyHTML){
+  const w = window.open("", "_blank", "width=1000,height=750");
+  if(!w){
+    alert("Your browser blocked the print pop-up. Please allow pop-ups for this page and try again.");
+    return;
+  }
+  w.document.open();
+  w.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+    <meta charset="UTF-8">
+    <style>
+      body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#111;}
+      h1{color:#0F6E6E;font-size:20px;margin-bottom:4px;}
+      .meta{font-size:12px;color:#555;margin-bottom:18px;}
+      h2{color:#0a4f4f;font-size:15px;margin:22px 0 8px;border-bottom:2px solid #E6F2F2;padding-bottom:4px;}
+      table{width:100%;border-collapse:collapse;margin-bottom:16px;}
+      th,td{border:1px solid #999;padding:6px 8px;font-size:12px;text-align:left;}
+      th{background:#0F6E6E;color:#fff;}
+      .badge{padding:2px 8px;border-radius:10px;color:#fff;font-size:11px;font-weight:bold;}
+      .ok{background:#2E7D32;} .near{background:#E08214;} .expired{background:#C00000;} .na{background:#999;}
+      @media print{ .no-print{display:none;} }
+    </style>
+    </head><body>
+    <button class="no-print" onclick="window.print()" style="margin-bottom:16px;padding:8px 16px;background:#0F6E6E;color:#fff;border:none;border-radius:6px;cursor:pointer;">Print</button>
+    <h1>${title}</h1>
+    <p class="meta">PDO Marmul Clinic — Generated: ${new Date().toISOString().slice(0,10)}</p>
+    ${bodyHTML}
+    </body></html>`);
+  w.document.close();
+  w.focus();
+  setTimeout(() => { try{ w.print(); }catch(e){ /* user can click the on-page Print button instead */ } }, 400);
+}
+
+function buildStockPrintHTML(){
+  let html = "";
+  RS_TABS.forEach(tab => {
+    const sections = RS_SECTIONS.filter(s => s.tab === tab);
+    sections.forEach(section => {
+      const items = REAGENT_DATA[section.key] || [];
+      if(!items.length) return;
+      html += `<h2>${section.title}</h2><table><thead><tr>`;
+      if(section.cols[0] === "custom_consumable"){
+        html += `<th>Item</th><th>Detail</th><th>Expiry</th><th>Status</th>`;
+      } else {
+        html += `<th>Test / Reagent</th>` + section.cols.map(c => `<th>${FIELD_LABELS[c] || c}</th>`).join("");
+      }
+      html += `</tr></thead><tbody>`;
+      items.forEach(item => {
+        const lots = item.lots && item.lots.length ? item.lots : [{}];
+        lots.forEach((lot, i) => {
+          html += `<tr>`;
+          if(i === 0) html += `<td rowspan="${lots.length}">${item.no}. ${item.name}</td>`;
+          if(section.cols[0] === "custom_consumable"){
+            html += `<td>${lot.stock ?? "\u2014"}</td><td>${rsFmtDate(lot.expiry)}</td><td>${(lot.status||"\u2014")}</td>`;
+          } else {
+            section.cols.forEach(c => {
+              if(c === "lot") html += `<td>${lot.lot ?? "\u2014"}</td>`;
+              else if(c === "in_use") html += `<td>${lot.in_use ? "Yes" : ""}</td>`;
+              else if(c === "stock") html += `<td>${lot.stock ?? "\u2014"}</td>`;
+              else if(c === "expiry") html += `<td>${rsFmtDate(lot.expiry)}</td>`;
+              else if(c === "status") html += `<td>${lot.status || "\u2014"}</td>`;
+              else if(c === "total_test") html += `<td>${lot.total_test ?? "\u2014"}</td>`;
+            });
+          }
+          html += `</tr>`;
+        });
+      });
+      html += `</tbody></table>`;
+    });
+  });
+  return html;
+}
+function buildOrderPrintHTML(rows){
+  if(!rows.length) return `<p>No items currently need reordering.</p>`;
+  let html = `<table><thead><tr><th>Category</th><th>Reagent / Item</th><th>Lot #</th><th>Stock Qty</th><th>Expiry</th><th>Reason</th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    html += `<tr><td>${r.category}</td><td>${r.name}</td><td>${r.lot}</td><td>${r.stock}</td><td>${r.expiry}</td><td>${r.reason}</td></tr>`;
+  });
+  html += `</tbody></table>`;
+  return html;
+}
+function printStockList(){
+  openPrintWindow("PDO Marmul Clinic \u2014 Reagent Stock List", buildStockPrintHTML());
+}
+function printOrderList(){
+  const rows = computeOrderRows();
+  openPrintWindow("PDO Marmul Clinic \u2014 Reagent Reorder List", buildOrderPrintHTML(rows));
+}
+
+// ============================================================
+// INIT
+// ============================================================
+async function init(){
+  buildNav();
+  document.getElementById("analyzerPanels").innerHTML = GROUPS.map(buildGroupPanel).join("");
+  document.querySelector('.main-panel[data-mainpanel="' + GROUPS[0] + '"]').classList.add("active");
+  wireQcSubtabs();
+  attachSettingsListeners();
+
+  for(const p of ANALYTES){
+    state[p.key].rows = await loadRows(p);
+    renderTable(p.key);
+  }
+
+  REAGENT_DATA = await loadReagentData();
+  MANUAL_ORDER_ITEMS = loadManualOrderItems();
+  renderReagentDashboard();
+  renderReorderList();
+  document.getElementById("searchBox").addEventListener("input", applyReagentFilters);
+  document.getElementById("statusFilter").addEventListener("change", applyReagentFilters);
+}
+init();
+</script>
+</body>
+</html>
